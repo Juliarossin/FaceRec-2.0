@@ -3,16 +3,17 @@ import { Link, useNavigate } from "react-router-dom";
 import { auth, provider, signInWithPopup } from "../../firebase";
 import { motion } from "framer-motion";
 import api, { apiBaseURL } from "@/lib/api";
-import { 
-  Eye, 
-  EyeOff, 
-  Brain, 
-  Shield, 
-  Zap, 
-  Network, 
-  Target, 
-  User, 
-  Lock, 
+import { useUser } from "@/contexts/UserContext";
+import {
+  Eye,
+  EyeOff,
+  Brain,
+  Shield,
+  Zap,
+  Network,
+  Target,
+  User,
+  Lock,
   Mail,
   Chrome,
   Camera
@@ -24,6 +25,7 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
   const API_BASE = apiBaseURL;
+  const { updateUser } = useUser();
 
   // Debug function para teste no console
   window.testLogin = async () => {
@@ -59,13 +61,16 @@ export default function Login() {
       console.log("Usuário logado com Google:", result.user);
 
       const usuario = {
-        full_name: result.user.displayName,
         email: result.user.email,
+        full_name: result.user.displayName || "Usuário Google",
         profile_picture: result.user.photoURL || "",
-        photoURL: result.user.photoURL || ""
+        photoURL: result.user.photoURL || "",
+        role: "professor",
+        tipo: "professor"
       };
 
       localStorage.setItem("usuario", JSON.stringify(usuario));
+      updateUser(usuario);
       navigate("/home");
     } catch (error) {
       console.error("Erro no login com Google:", error);
@@ -81,47 +86,6 @@ export default function Login() {
     'administrador@escola.com': { senha: '123456', role: 'admin', nome: 'Administrador FaceRec' },
     'professor@escola.com': { senha: '123456', role: 'professor', nome: 'Professor Silva' },
     'teste@teste.com': { senha: '123456', role: 'professor', nome: 'Usuário Teste' }
-  };
-
-  // Função para login direto (bypass do formulário)
-  const loginDirecto = async (email, senha) => {
-    console.log("🚀 Login direto iniciado:", { email, senha });
-    
-    const credencialMock = credenciaisMock[email];
-    
-    if (!credencialMock || senha !== credencialMock.senha) {
-      alert('Credenciais inválidas para login de desenvolvimento');
-      return;
-    }
-
-    setLoading(true);
-    
-    try {
-      const usuario = {
-        email: email,
-        full_name: credencialMock.nome,
-        profile_picture: "",
-        photoURL: "",
-        role: credencialMock.role,
-        tipo: credencialMock.role === 'admin' ? 'administrador' : 'professor'
-      };
-
-      console.log("🧪 Login direto - Usuário:", usuario);
-      
-      localStorage.setItem("token", `mock-token-${Date.now()}`);
-      localStorage.setItem("usuario", JSON.stringify(usuario));
-      
-      console.log("✅ Login direto bem-sucedido, redirecionando...");
-      
-      // Recarregar completamente a página para garantir que o contexto seja atualizado
-      window.location.href = "/alunos";
-      
-    } catch (error) {
-      console.error("❌ Erro no login direto:", error);
-      alert('Erro no login direto: ' + error.message);
-    } finally {
-      setLoading(false);
-    }
   };
 
   const handleEmailLogin = async (e) => {
@@ -153,6 +117,7 @@ export default function Login() {
 
         localStorage.setItem("token", `mock-token-${Date.now()}`);
         localStorage.setItem("usuario", JSON.stringify(usuario));
+  updateUser(usuario);
         
         // Verificar se foi salvo corretamente
         const saved = localStorage.getItem("usuario");
@@ -205,8 +170,9 @@ export default function Login() {
         classes: Array.isArray(apiUser.classes) ? apiUser.classes : [],
       };
 
-      console.log("👤 Salvando usuário:", usuario);
-      localStorage.setItem("usuario", JSON.stringify(usuario));
+    console.log("👤 Salvando usuário:", usuario);
+    localStorage.setItem("usuario", JSON.stringify(usuario));
+    updateUser(usuario);
       
       console.log("🎯 Redirecionando para /alunos");
       navigate("/alunos", { replace: true });
@@ -432,33 +398,6 @@ export default function Login() {
               </p>
             </motion.div>
 
-            {/* Acesso Rápido para Desenvolvimento */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 1.0, duration: 0.6 }}
-              className="mt-6 p-4 bg-gray-50 rounded-xl border border-gray-200"
-            >
-              <p className="text-xs text-gray-500 text-center mb-3 text-ai">
-                Acesso Rápido (Desenvolvimento)
-              </p>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => loginDirecto('professor@escola.com', '123456')}
-                  disabled={loading}
-                  className="flex-1 py-2 px-3 text-xs bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors font-medium disabled:opacity-50"
-                >
-                  👨‍🏫 Entrar como Professor
-                </button>
-                <button
-                  onClick={() => loginDirecto('admin@escola.com', '123456')}
-                  disabled={loading}
-                  className="flex-1 py-2 px-3 text-xs bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors font-medium disabled:opacity-50"
-                >
-                  🛡️ Entrar como Admin
-                </button>
-              </div>
-            </motion.div>
           </div>
         </motion.div>
       </div>

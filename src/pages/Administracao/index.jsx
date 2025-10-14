@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useUser } from '../../contexts/UserContext';
 import { Navigate } from 'react-router-dom';
 import { 
@@ -31,6 +31,8 @@ const Administracao = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [modalType, setModalType] = useState(''); // 'aluno' ou 'sala'
+  const fileInputRef = useRef(null);
+  const [importResumo, setImportResumo] = useState(null);
 
   // Estados dos dados
   const [alunos, setAlunos] = useState([]);
@@ -56,6 +58,15 @@ const Administracao = () => {
     }
   };
 
+  const removerDados = (chave) => {
+    try {
+      localStorage.removeItem(`admin_${chave}`);
+      console.log(`🗑️ admin_${chave} removido do localStorage`);
+    } catch (error) {
+      console.error(`❌ Erro ao remover ${chave}:`, error);
+    }
+  };
+
   const carregarDados = (chave, dadosDefault) => {
     try {
       const dadosSalvos = localStorage.getItem(`admin_${chave}`);
@@ -73,49 +84,9 @@ const Administracao = () => {
   // Carregamento inicial dos dados com persistência
   useEffect(() => {
     // Dados padrão (mock) - usados apenas se não houver dados salvos
-    const mockAlunos = [
-      {
-        id: 1,
-        nome: 'Ana Clara Silva',
-        matricula: '202401001',
-        salaId: 1,
-        email: 'ana.silva@escola.com',
-        telefone: '(11) 99999-1111',
-        foto: 'https://images.unsplash.com/photo-1494790108755-2616b332-f91-400?w=150&h=150&fit=crop&crop=face',
-        ativo: true,
-        dataCadastro: '2024-01-15'
-      },
-      {
-        id: 2,
-        nome: 'João Pedro Santos',
-        matricula: '202401002',
-        salaId: 1,
-        email: 'joao.santos@escola.com',
-        telefone: '(11) 99999-2222',
-        foto: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face',
-        ativo: true,
-        dataCadastro: '2024-01-15'
-      }
-    ];
+    const mockAlunos = [];
 
-    const mockSalas = [
-      {
-        id: 1,
-        nome: "1º Ano A",
-        turma: "Ensino Médio",
-        periodo: "Manhã",
-        totalAlunos: 32,
-        ativa: true
-      },
-      {
-        id: 2,
-        nome: "1º Ano B",
-        turma: "Ensino Médio", 
-        periodo: "Manhã",
-        totalAlunos: 28,
-        ativa: true
-      }
-    ];
+    const mockSalas = [];
 
     // Carregar dados salvos ou usar defaults
     const alunosCarregados = carregarDados('alunos', mockAlunos);
@@ -129,12 +100,16 @@ const Administracao = () => {
   useEffect(() => {
     if (alunos.length > 0) {
       salvarDados('alunos', alunos);
+    } else {
+      removerDados('alunos');
     }
   }, [alunos]);
 
   useEffect(() => {
     if (salas.length > 0) {
       salvarDados('salas', salas);
+    } else {
+      removerDados('salas');
     }
   }, [salas]);
 
@@ -302,6 +277,7 @@ const Administracao = () => {
       // Resetar estados para dados vazios
       setAlunos([]);
       setSalas([]);
+      setImportResumo(null);
 
       
       console.log(`🗑️ Todos os dados foram limpos pelo admin ${usuario?.email}`);
@@ -314,6 +290,160 @@ const Administracao = () => {
     } else {
       alert('Operação cancelada. Dados preservados.');
     }
+  };
+
+  const parseCsvContent = (text) => {
+    const rawLines = text.split(/\r?\n/);
+    const lines = rawLines
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+
+    if (lines.length < 2) {
+      throw new Error('Arquivo CSV precisa conter cabeçalho e ao menos uma linha de dados.');
+    }
+
+    const headerLine = lines[0];
+    const delimiter = headerLine.includes(';') ? ';' : ',';
+    const headers = headerLine.split(delimiter).map((h) => h.trim());
+    const normalizedHeaders = headers.map((h) =>
+      h
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+    );
+
+    const findIndex = (keyword) =>
+      normalizedHeaders.findIndex((header) => header.includes(keyword));
+
+    const indices = {
+      sala: findIndex('sala'),
+      turma: findIndex('turma'),
+      periodo: findIndex('periodo'),
+      nome: findIndex('nome'),
+      matricula: findIndex('matric'),
+      email: findIndex('email'),
+      telefone: findIndex('telefone'),
+    };
+
+    if (indices.sala === -1 || indices.nome === -1) {
+      throw new Error('Cabeçalho precisa conter, no mínimo, as colunas "Sala" e "Nome".');
+    }
+
+    let salaSeq = 1;
+    let alunoSeq = 1;
+    const salasMap = new Map();
+    const alunosImportados = [];
+
+    lines.slice(1).forEach((line, idx) => {
+      const cols = line.split(delimiter).map((c) => c.trim());
+      if (cols.every((value) => value === '')) {
+        return;
+      }
+
+      const salaNome = cols[indices.sala] || '';
+      const alunoNome = cols[indices.nome] || '';
+
+      if (!salaNome || !alunoNome) {
+        console.warn(`Linha ${idx + 2} ignorada (Sala ou Nome ausente).`);
+        return;
+      }
+
+      const salaKey = salaNome.toLowerCase();
+      if (!salasMap.has(salaKey)) {
+        const salaId = salaSeq++;
+        salasMap.set(salaKey, {
+          id: salaId,
+          nome: salaNome,
+          turma: indices.turma !== -1 ? (cols[indices.turma] || '') : '',
+          periodo: indices.periodo !== -1 ? (cols[indices.periodo] || '') : '',
+          totalAlunos: 0,
+          ativa: true,
+        });
+      }
+
+      const sala = salasMap.get(salaKey);
+      sala.totalAlunos += 1;
+
+      const alunoId = alunoSeq++;
+      alunosImportados.push({
+        id: alunoId,
+        nome: alunoNome,
+        matricula:
+          indices.matricula !== -1 && cols[indices.matricula]
+            ? cols[indices.matricula]
+            : `AUTO-${sala.id}-${String(alunoId).padStart(4, '0')}`,
+        salaId: sala.id,
+        email: indices.email !== -1 ? (cols[indices.email] || '') : '',
+        telefone: indices.telefone !== -1 ? (cols[indices.telefone] || '') : '',
+        foto: '',
+        ativo: true,
+        dataCadastro: new Date().toISOString().split('T')[0],
+      });
+    });
+
+    if (alunosImportados.length === 0) {
+      throw new Error('Nenhum aluno válido foi encontrado no arquivo.');
+    }
+
+    const salasImportadas = Array.from(salasMap.values()).map((sala) => ({
+      ...sala,
+      turma: sala.turma || 'Turma não informada',
+      periodo: sala.periodo || 'Manhã',
+    }));
+
+    return { alunos: alunosImportados, salas: salasImportadas };
+  };
+
+  const handleCsvButtonClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleCsvInputChange = (event) => {
+    const input = event.target;
+    const file = input.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (loadEvent) => {
+      try {
+        const text = loadEvent.target?.result;
+        if (typeof text !== 'string') {
+          throw new Error('Não foi possível ler o conteúdo do arquivo.');
+        }
+
+        const { alunos: alunosImportados, salas: salasImportadas } = parseCsvContent(text);
+
+        setSalas(salasImportadas);
+        setAlunos(alunosImportados);
+        setSalaSelecionada(null);
+        setActiveTab('alunos');
+        setImportResumo({
+          arquivo: file.name,
+          totalAlunos: alunosImportados.length,
+          totalSalas: salasImportadas.length,
+          horario: new Date().toLocaleString('pt-BR'),
+        });
+
+        alert(`✅ Importação concluída: ${alunosImportados.length} alunos distribuídos em ${salasImportadas.length} sala(s).`);
+      } catch (error) {
+        console.error('❌ Erro ao importar CSV:', error);
+        alert(`❌ Erro ao importar CSV: ${error.message}`);
+      } finally {
+        if (input) {
+          input.value = '';
+        }
+      }
+    };
+
+    reader.onerror = () => {
+      alert('❌ Não foi possível ler o arquivo selecionado.');
+      input.value = '';
+    };
+
+    reader.readAsText(file, 'utf-8');
   };
 
   /**
@@ -517,6 +647,13 @@ const Administracao = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".csv,text/csv"
+        className="hidden"
+        onChange={handleCsvInputChange}
+      />
       {/* Header */}
       <div className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -546,6 +683,13 @@ const Administracao = () => {
               <h3 className="text-sm font-semibold text-gray-700">Controles do Sistema:</h3>
               <div className="flex space-x-2">
                 <button
+                  onClick={handleCsvButtonClick}
+                  className="flex items-center space-x-2 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs rounded-lg transition-colors"
+                >
+                  <Upload className="w-4 h-4" />
+                  <span>Importar CSV</span>
+                </button>
+                <button
                   onClick={exportarDados}
                   className="flex items-center space-x-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-lg transition-colors"
                 >
@@ -565,6 +709,18 @@ const Administracao = () => {
               💾 Alterações salvas automaticamente
             </div>
           </div>
+          {importResumo && (
+            <div className="mt-3 text-xs text-gray-600 flex flex-wrap items-center gap-2">
+              <span>📥 Última importação:</span>
+              <span className="font-medium">{importResumo.totalSalas} sala(s)</span>
+              <span>•</span>
+              <span className="font-medium">{importResumo.totalAlunos} aluno(s)</span>
+              <span>•</span>
+              <span>{importResumo.arquivo}</span>
+              <span>•</span>
+              <span>{importResumo.horario}</span>
+            </div>
+          )}
         </div>
       </div>
 
