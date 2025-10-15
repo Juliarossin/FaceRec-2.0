@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useUser } from '../../contexts/UserContext';
+import api from '../../lib/api';
 import { Navigate } from 'react-router-dom';
 import { 
   Users, 
@@ -33,6 +34,7 @@ const Administracao = () => {
   const [modalType, setModalType] = useState(''); // 'aluno' ou 'sala'
   const fileInputRef = useRef(null);
   const [importResumo, setImportResumo] = useState(null);
+  const [importingToServer, setImportingToServer] = useState(false);
 
   // Estados dos dados
   const [alunos, setAlunos] = useState([]);
@@ -284,9 +286,7 @@ const Administracao = () => {
       alert('🗑️ Todos os dados foram removidos do sistema!');
       
       // Recarregar a página para voltar aos dados mock
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
+      window.location.reload();
     } else {
       alert('Operação cancelada. Dados preservados.');
     }
@@ -398,7 +398,7 @@ const Administracao = () => {
     fileInputRef.current?.click();
   };
 
-  const handleCsvInputChange = (event) => {
+  const handleCsvInputChange = async (event) => {
     const input = event.target;
     const file = input.files?.[0];
 
@@ -406,8 +406,8 @@ const Administracao = () => {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (loadEvent) => {
+  const reader = new FileReader();
+  reader.onload = async (loadEvent) => {
       try {
         const text = loadEvent.target?.result;
         if (typeof text !== 'string') {
@@ -428,6 +428,15 @@ const Administracao = () => {
         });
 
         alert(`✅ Importação concluída: ${alunosImportados.length} alunos distribuídos em ${salasImportadas.length} sala(s).`);
+        // Pergunta ao usuário se deseja enviar os dados para o servidor
+        try {
+          if (confirm('Deseja enviar os dados importados para o servidor e salvá-los no banco de dados?')) {
+            await sendImportToServer(alunosImportados, salasImportadas);
+          }
+        } catch (err) {
+          console.error('Erro ao enviar importação ao servidor:', err);
+          alert('Erro ao enviar os dados ao servidor: ' + (err?.message || err));
+        }
       } catch (error) {
         console.error('❌ Erro ao importar CSV:', error);
         alert(`❌ Erro ao importar CSV: ${error.message}`);
@@ -444,6 +453,45 @@ const Administracao = () => {
     };
 
     reader.readAsText(file, 'utf-8');
+  };
+
+  // Envia os dados importados para o backend
+  const sendImportToServer = async (alunosImportados, salasImportadas) => {
+    if (!Array.isArray(alunosImportados) || alunosImportados.length === 0) {
+      alert('Nenhum aluno válido para enviar.');
+      return;
+    }
+
+    const token = localStorage.getItem('token');
+    if (!token) {
+      alert('Não há token de autenticação. Faça login como administrador antes de enviar.');
+      return;
+    }
+
+    setImportingToServer(true);
+    try {
+      const res = await api.post('/admin/import', {
+        alunos: alunosImportados,
+        salas: salasImportadas
+      }, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      if (res?.data?.success) {
+        alert(`✅ Importação enviada com sucesso. Alunos inseridos: ${res.data.inserted || 0}`);
+      } else {
+        alert('Resposta inesperada do servidor: ' + JSON.stringify(res.data));
+      }
+    } catch (err) {
+      console.error('Erro ao enviar import para servidor:', err);
+      const message = err.response?.data?.error || err.message || 'Erro desconhecido';
+      alert('Erro ao enviar import para servidor: ' + message);
+      throw err;
+    } finally {
+      setImportingToServer(false);
+    }
   };
 
   /**

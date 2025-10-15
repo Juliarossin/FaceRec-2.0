@@ -639,6 +639,121 @@ app.post('/admin/migrate-profile-pictures', async (req, res) => {
   }
 });
 
+/* ===== Importação de CSV (recebe JSON com 'alunos' e 'salas' do frontend) ===== */
+app.post('/api/admin/import', authenticateToken, async (req, res) => {
+  // Apenas admins podem importar
+  try {
+    if (req.user?.role !== 'admin') return res.status(403).json({ error: 'Acesso negado' });
+
+    const { alunos, salas } = req.body || {};
+    if (!Array.isArray(alunos) || alunos.length === 0) {
+      return res.status(400).json({ error: 'Campo "alunos" é obrigatório e deve ser um array não vazio' });
+    }
+
+    const conn = await pool.getConnection();
+    let transactionStarted = false;
+    try {
+      // Criar tabelas necessárias se não existirem (versão resiliente)
+      await conn.execute(`
+        CREATE TABLE IF NOT EXISTS classrooms (
+          id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+          name VARCHAR(120) NOT NULL,
+          turma VARCHAR(120) DEFAULT NULL,
+          periodo VARCHAR(60) DEFAULT NULL,
+          total_students INT DEFAULT 0,
+          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+      `);
+
+      await conn.execute(`
+        CREATE TABLE IF NOT EXISTS students (
+          id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+          nome VARCHAR(150) NOT NULL,
+          matricula VARCHAR(100) DEFAULT NULL,
+          email VARCHAR(150) DEFAULT NULL,
+          telefone VARCHAR(30) DEFAULT NULL,
+          classroom_id BIGINT UNSIGNED DEFAULT NULL,
+          foto VARCHAR(500) DEFAULT NULL,
+          ativo TINYINT(1) DEFAULT 1,
+          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT fk_students_classroom FOREIGN KEY (classroom_id) REFERENCES classrooms(id) ON DELETE SET NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+      `);
+
+      await conn.beginTransaction();
+      transactionStarted = true;
+
+      // Inserir salas (ou reutilizar existentes)
+      const salaIdMap = new Map(); // mapa: frontend sala.id -> db classroom.id
+      if (Array.isArray(salas)) {
+        for (const sala of salas) {
+          const name = String(sala.nome || '').trim();
+          if (!name) continue;
+
+          // Verifica existência por nome + turma
+          const [existing] = await conn.execute(
+            'SELECT id FROM classrooms WHERE name = ? LIMIT 1',
+            [name]
+          );
+          if (existing.length > 0) {
+            salaIdMap.set(sala.id, existing[0].id);
+          } else {
+            const [result] = await conn.execute(
+              'INSERT INTO classrooms (name, turma, periodo, total_students) VALUES (?, ?, ?, ?)',
+              [name, sala.turma || null, sala.periodo || null, sala.totalAlunos || 0]
+            );
+            salaIdMap.set(sala.id, result.insertId);
+          }
+        }
+      }
+
+      // Inserir alunos
+      let inserted = 0;
+      for (const aluno of alunos) {
+        if (!aluno || !aluno.nome) continue;
+        const classroomDbId = salaIdMap.get(aluno.salaId) || null;
+        await conn.execute(
+          `INSERT INTO students (nome, matricula, email, telefone, classroom_id, foto, ativo)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [
+            String(aluno.nome).trim(),
+            aluno.matricula || null,
+            aluno.email || null,
+            aluno.telefone || null,
+            classroomDbId,
+            aluno.foto || null,
+            aluno.ativo ? 1 : 0
+          ]
+        );
+        inserted += 1;
+      }
+
+      // Atualiza contagem de alunos nas salas
+      for (const [frontendId, dbId] of salaIdMap.entries()) {
+        const [cntRows] = await conn.execute('SELECT COUNT(*) as cnt FROM students WHERE classroom_id = ?', [dbId]);
+        const cnt = cntRows?.[0]?.cnt || 0;
+        await conn.execute('UPDATE classrooms SET total_students = ? WHERE id = ?', [cnt, dbId]);
+      }
+
+      await conn.commit();
+      transactionStarted = false;
+
+      res.json({ success: true, inserted, classroomsImported: Array.from(salaIdMap.values()).length });
+    } catch (err) {
+      if (transactionStarted) {
+        try { await conn.rollback(); } catch (e) {}
+      }
+      console.error('Erro na importação CSV:', err);
+      res.status(500).json({ error: 'Falha ao importar dados: ' + err.message });
+    } finally {
+      if (conn) conn.release();
+    }
+  } catch (err) {
+    console.error('Erro no endpoint de importação:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 /* ===== Upload de foto de perfil ===== */
 // 🔧 ALTERADO: resposta com cache-bust e deleção de arquivo anterior robusta
 app.post('/api/user/profile-picture', authenticateToken, upload.single('profilePicture'), async (req, res) => {
