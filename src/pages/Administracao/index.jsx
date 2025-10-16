@@ -28,7 +28,7 @@ import {
  */
 const Administracao = () => {
   const { usuario, isAdmin } = useUser();
-  const [activeTab, setActiveTab] = useState('alunos');
+
   const [showModal, setShowModal] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [modalType, setModalType] = useState(''); // 'aluno' ou 'sala'
@@ -146,7 +146,42 @@ const Administracao = () => {
     setShowModal(true);
   };
 
-  const handleSaveAluno = () => {
+  // Função para upload de foto do aluno
+  const handlePhotoUpload = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = (e) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        // Verificar se é uma imagem
+        if (!file.type.startsWith('image/')) {
+          alert('❌ Por favor, selecione apenas arquivos de imagem (JPG, PNG, GIF, etc.)');
+          return;
+        }
+        
+        // Verificar tamanho do arquivo (máximo 5MB)
+        if (file.size > 5 * 1024 * 1024) {
+          alert('❌ A imagem deve ter no máximo 5MB');
+          return;
+        }
+        
+        // Converter para base64 e atualizar o estado
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const base64String = event.target.result;
+          setEditingItem(prev => ({
+            ...prev,
+            foto: base64String
+          }));
+        };
+        reader.readAsDataURL(file);
+      }
+    };
+    input.click();
+  };
+
+  const handleSaveAluno = async () => {
     // Validações obrigatórias
     if (!editingItem.nome?.trim()) {
       alert('❌ Por favor, insira o nome do aluno.');
@@ -161,23 +196,53 @@ const Administracao = () => {
     // Buscar dados da sala selecionada
     const salaSelecionada = salas.find(s => s.id == editingItem.salaId);
     
-    if (editingItem.id) {
-      // Editar existente
-      setAlunos(prev => prev.map(a => a.id === editingItem.id ? editingItem : a));
-      console.log(`✅ Aluno ${editingItem.nome} atualizado pelo admin ${usuario?.email} - Sala: ${salaSelecionada?.nome}`);
-      alert(`✅ Aluno ${editingItem.nome} atualizado com sucesso!\nSala: ${salaSelecionada?.nome}`);
-    } else {
-      // Criar novo
-      const novoAluno = {
-        ...editingItem,
-        id: Date.now(),
-        matricula: editingItem.matricula || `2024${Date.now().toString().slice(-5)}`,
-        dataCadastro: new Date().toISOString().split('T')[0]
-      };
-      setAlunos(prev => [...prev, novoAluno]);
-      console.log(`✅ Novo aluno ${novoAluno.nome} cadastrado pelo admin ${usuario?.email} - Sala: ${salaSelecionada?.nome}`);
-      alert(`✅ Aluno ${novoAluno.nome} cadastrado com sucesso!\nSala: ${salaSelecionada?.nome}`);
+    try {
+      if (editingItem.id) {
+        // Editar existente - enviar para backend se houver mudanças na foto
+        const alunoOriginal = alunos.find(a => a.id === editingItem.id);
+        const fotoAlterada = alunoOriginal?.foto !== editingItem.foto;
+        
+        if (fotoAlterada) {
+          console.log('📸 Enviando foto atualizada para o backend...');
+          const token = localStorage.getItem('token');
+          if (token) {
+            try {
+              await api.put(`/admin/alunos/${editingItem.id}`, {
+                ...editingItem
+              }, {
+                headers: {
+                  'Authorization': `Bearer ${token}`
+                }
+              });
+              console.log('✅ Foto salva no backend com sucesso');
+            } catch (error) {
+              console.warn('⚠️ Erro ao salvar no backend, mantendo apenas localmente:', error.message);
+            }
+          }
+        }
+        
+        // Atualizar localmente
+        setAlunos(prev => prev.map(a => a.id === editingItem.id ? editingItem : a));
+        console.log(`✅ Aluno ${editingItem.nome} atualizado pelo admin ${usuario?.email} - Sala: ${salaSelecionada?.nome}`);
+        alert(`✅ Aluno ${editingItem.nome} atualizado com sucesso!\nSala: ${salaSelecionada?.nome}${fotoAlterada ? '\n📸 Foto atualizada!' : ''}`);
+      } else {
+        // Criar novo
+        const novoAluno = {
+          ...editingItem,
+          id: Date.now(),
+          matricula: editingItem.matricula || `2024${Date.now().toString().slice(-5)}`,
+          dataCadastro: new Date().toISOString().split('T')[0]
+        };
+        setAlunos(prev => [...prev, novoAluno]);
+        console.log(`✅ Novo aluno ${novoAluno.nome} cadastrado pelo admin ${usuario?.email} - Sala: ${salaSelecionada?.nome}`);
+        alert(`✅ Aluno ${novoAluno.nome} cadastrado com sucesso!\nSala: ${salaSelecionada?.nome}`);
+      }
+    } catch (error) {
+      console.error('❌ Erro ao salvar aluno:', error);
+      alert('❌ Erro ao salvar aluno: ' + error.message);
+      return;
     }
+    
     setShowModal(false);
     setEditingItem(null);
   };
@@ -419,7 +484,7 @@ const Administracao = () => {
         setSalas(salasImportadas);
         setAlunos(alunosImportados);
         setSalaSelecionada(null);
-        setActiveTab('alunos');
+
         setImportResumo({
           arquivo: file.name,
           totalAlunos: alunosImportados.length,
@@ -553,10 +618,24 @@ const Administracao = () => {
                       </div>
                     )}
                   </div>
-                  <button className="text-blue-600 hover:text-blue-700 text-sm font-medium">
-                    <Upload className="w-4 h-4 inline mr-1" />
-                    Alterar Foto
-                  </button>
+                  <div className="flex gap-3 justify-center">
+                    <button 
+                      onClick={handlePhotoUpload}
+                      className="text-blue-600 hover:text-blue-700 text-sm font-medium transition-colors"
+                    >
+                      <Upload className="w-4 h-4 inline mr-1" />
+                      {editingItem?.foto ? 'Trocar Foto' : 'Adicionar Foto'}
+                    </button>
+                    {editingItem?.foto && (
+                      <button 
+                        onClick={() => setEditingItem(prev => ({...prev, foto: null}))}
+                        className="text-red-600 hover:text-red-700 text-sm font-medium transition-colors"
+                      >
+                        <span className="inline mr-1">🗑️</span>
+                        Remover Foto
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Campos do Aluno */}
@@ -693,6 +772,8 @@ const Administracao = () => {
     );
   };
 
+
+
   return (
     <div className="min-h-screen bg-gray-50">
       <input
@@ -757,127 +838,49 @@ const Administracao = () => {
               💾 Alterações salvas automaticamente
             </div>
           </div>
-          {importResumo && (
-            <div className="mt-3 text-xs text-gray-600 flex flex-wrap items-center gap-2">
-              <span>📥 Última importação:</span>
-              <span className="font-medium">{importResumo.totalSalas} sala(s)</span>
-              <span>•</span>
-              <span className="font-medium">{importResumo.totalAlunos} aluno(s)</span>
-              <span>•</span>
-              <span>{importResumo.arquivo}</span>
-              <span>•</span>
-              <span>{importResumo.horario}</span>
-            </div>
-          )}
+
         </div>
       </div>
 
-      {/* Tabs */}
+      {/* Lista de Alunos */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="mb-8">
-          <div className="border-b border-gray-200">
-            <nav className="-mb-px flex space-x-8">
-              <button
-                onClick={() => setActiveTab('alunos')}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'alunos'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                <Users className="w-5 h-5 inline mr-2" />
-                Gerenciar Alunos
-              </button>
-              <button
-                onClick={() => setActiveTab('salas')}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'salas'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                <School className="w-5 h-5 inline mr-2" />
-                Gerenciar Salas
-              </button>
-            </nav>
-          </div>
-        </div>
+        <div>
 
-        {/* Conteúdo das Tabs */}
-        {activeTab === 'alunos' && (
-          <div>
-            {/* Filtro por Sala */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
-              <div className="flex items-center space-x-4">
+            {/* Header da seção Alunos com Seletor de Sala */}
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-semibold text-gray-800">
+                Lista de Alunos
+                {salaSelecionada && (
+                  <span className="ml-2 text-sm font-normal text-green-600">
+                    - {salaSelecionada.nome}
+                  </span>
+                )}
+              </h2>
+              
+              {/* Seletor de Sala */}
+              <div className="flex items-center space-x-3">
                 <label className="text-sm font-medium text-gray-700">
-                  🏫 Gerenciar alunos da sala:
+                  Filtrar por sala:
                 </label>
                 <select
                   value={salaSelecionada?.id || ''}
                   onChange={(e) => {
-                    const salaId = parseInt(e.target.value);
-                    const sala = salas.find(s => s.id === salaId);
-                    setSalaSelecionada(sala || null);
+                    const salaId = e.target.value;
+                    setSalaSelecionada(salaId ? salas.find(s => s.id == salaId) : null);
                   }}
-                  className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white min-w-[200px] text-sm"
                 >
-                  <option value="">📚 Selecione uma sala para gerenciar</option>
-                  {salas.map(sala => (
-                    <option key={sala.id} value={sala.id}>
-                      {sala.nome} - {sala.turma} ({sala.periodo})
-                    </option>
-                  ))}
+                  <option value="">� Todos os Alunos ({alunos.length})</option>
+                  {salas.map(sala => {
+                    const alunosDaSala = alunos.filter(aluno => aluno.salaId === sala.id);
+                    return (
+                      <option key={sala.id} value={sala.id}>
+                        📚 {sala.nome} ({alunosDaSala.length} alunos)
+                      </option>
+                    );
+                  })}
                 </select>
-                {salaSelecionada && (
-                  <button
-                    onClick={() => setSalaSelecionada(null)}
-                    className="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded"
-                  >
-                    ✕ Limpar filtro
-                  </button>
-                )}
               </div>
-            </div>
-
-            {/* Header da seção Alunos */}
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold text-gray-800">
-                {salaSelecionada ? (
-                  <>
-                    📚 Alunos da {salaSelecionada.nome} 
-                    <span className="text-sm text-gray-600 ml-2">
-                      ({alunos.filter(a => a.salaId === salaSelecionada.id).length} alunos)
-                    </span>
-                  </>
-                ) : (
-                  `Todos os Alunos (${alunos.length})`
-                )}
-              </h2>
-              <button
-                onClick={handleAddAluno}
-                className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
-                  salas.length === 0 
-                    ? 'bg-gray-400 cursor-not-allowed text-white' 
-                    : 'bg-green-600 hover:bg-green-700 text-white'
-                }`}
-                title={
-                  salas.length === 0 
-                    ? "⚠️ Primeiro crie pelo menos uma sala" 
-                    : salaSelecionada 
-                      ? `Adicionar aluno na ${salaSelecionada.nome}`
-                      : "Cadastrar novo aluno vinculado a uma sala"
-                }
-                disabled={salas.length === 0}
-              >
-                <UserPlus className="w-5 h-5" />
-                <span>
-                  {salaSelecionada 
-                    ? `➕ Adicionar à ${salaSelecionada.nome}`
-                    : '👤 Cadastrar Aluno por Sala'
-                  }
-                </span>
-                {salas.length === 0 && <span className="text-xs ml-2">(Sem salas)</span>}
-              </button>
             </div>
 
             {/* Lista de Alunos */}
@@ -1013,66 +1016,9 @@ const Administracao = () => {
             </div>
             );
             })()}
-          </div>
-        )}
+        </div>
 
-        {activeTab === 'salas' && (
-          <div>
-            {/* Header da seção Salas */}
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold text-gray-800">
-                Salas de Aula ({salas.length})
-              </h2>
-              <button
-                onClick={handleAddSala}
-                className="flex items-center space-x-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
-              >
-                <Plus className="w-5 h-5" />
-                <span>Adicionar Sala</span>
-              </button>
-            </div>
 
-            {/* Grid de Salas */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {salas.map((sala) => (
-                <div key={sala.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-gray-800">
-                      {sala.nome}
-                    </h3>
-                    <div className="flex space-x-2">
-                      <button
-                        onClick={() => handleEditSala(sala)}
-                        className="text-blue-600 hover:text-blue-900"
-                      >
-                        <Edit3 className="w-4 h-4" />
-                      </button>
-                      <button className="text-red-600 hover:text-red-900">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2 text-sm text-gray-600">
-                    <p><strong>Turma:</strong> {sala.turma}</p>
-                    <p><strong>Período:</strong> {sala.periodo}</p>
-                    <p><strong>Alunos:</strong> {alunos.filter(a => a.salaId === sala.id).length}</p>
-                  </div>
-                  
-                  <div className="mt-4">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      sala.ativa 
-                        ? 'bg-green-100 text-green-800' 
-                        : 'bg-gray-100 text-gray-800'
-                    }`}>
-                      {sala.ativa ? 'Ativa' : 'Inativa'}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Modal */}
