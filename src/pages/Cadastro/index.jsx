@@ -121,7 +121,10 @@ export default function Cadastro() {
   };
 
   return (
-    <div className="min-h-screen w-screen flex items-center justify-center relative overflow-hidden" style={{background: 'linear-gradient(135deg, #0f1e2a, #1a2f3a)'}}>
+    <div className="min-h-screen w-screen flex items-center justify-center relative overflow-hidden login-background">
+      
+      {/* Overlay escuro para melhor legibilidade */}
+      <div className="absolute inset-0 bg-black/40"></div>
       
       {/* Efeitos de fundo Neural */}
       <div className="absolute inset-0 opacity-20">
@@ -168,7 +171,7 @@ export default function Cadastro() {
           transition={{ duration: 0.8 }}
           className="w-full max-w-md mx-auto"
         >
-          <div className="backdrop-blur-sm rounded-3xl p-8 shadow-2xl" style={{background: 'linear-gradient(135deg, #f4b88a, #f0ad7a)', border: '2px solid #eca470', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.2)'}}>
+          <div className="backdrop-blur-md rounded-3xl p-8 shadow-2xl" style={{background: 'rgba(255, 255, 255, 0.1)', border: '2px solid rgba(255, 255, 255, 0.2)', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.3)'}}>
             
             {/* Header do Formulário com Logo */}
             <motion.div

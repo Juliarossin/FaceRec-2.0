@@ -168,3 +168,25 @@ img, video, canvas{ max-width:100%; height:auto; border-radius: 12px; }
   0% { box-shadow: 0 0 20px rgba(99, 102, 241, 0.3); }
   100% { box-shadow: 0 0 30px rgba(139, 92, 246, 0.5); }
 }
+
+/* Fundo da página de login */
+.login-background {
+  background-image: url('/8CD0L.jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  min-height: 100vh;
+}
+
+/* Fallback se a imagem não carregar */
+.login-background::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, #1f2937 0%, #374151 100%);
+  z-index: -1;
+}

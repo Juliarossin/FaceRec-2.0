@@ -4,6 +4,7 @@ import { auth, provider, signInWithPopup } from "../../firebase";
 import { motion } from "framer-motion";
 import api, { apiBaseURL } from "@/lib/api";
 import { useUser } from "@/contexts/UserContext";
+import Logo from "../../assets/Logo.png";
 import {
   Eye,
   EyeOff,
@@ -18,6 +19,8 @@ import {
   Chrome,
   Camera
 } from "lucide-react";
+
+
 
 export default function Login() {
   const [formData, setFormData] = useState({ email: "", password: "" });
@@ -188,40 +191,86 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen relative overflow-hidden"
-         style={{
-           backgroundImage: 'url(/palm-trees-sunset.jpg)',
-           backgroundSize: 'cover',
-           backgroundPosition: 'center',
-           backgroundRepeat: 'no-repeat'
-         }}>
+    <div className="min-h-screen w-screen flex items-center justify-center relative overflow-hidden login-background">
       
-      {/* Overlay escuro para melhor legibilidade do texto */}
-      <div className="absolute inset-0 bg-black/30"></div>
+      {/* Overlay escuro para melhor legibilidade */}
+      <div className="absolute inset-0 bg-black/40"></div>
+      
+      {/* Efeitos de fundo Neural - bolinhas animadas */}
+      <div className="absolute inset-0 opacity-20">
+        {[...Array(25)].map((_, i) => (
+          <motion.div
+            key={i}
+            initial={{ opacity: 0, scale: 0 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ 
+              duration: 2,
+              delay: i * 0.05,
+              repeat: Infinity,
+              repeatType: "reverse",
+              repeatDelay: Math.random() * 4
+            }}
+            className="absolute w-2 h-2 bg-gradient-to-r from-orange-200 to-orange-300 rounded-full" 
+            style={{
+              backgroundColor: 'rgba(228, 165, 118, 0.6)', 
+              boxShadow: '0 0 8px rgba(228, 165, 118, 0.4)',
+              left: `${Math.random() * 100}%`,
+              top: `${Math.random() * 100}%`,
+            }}
+          />
+        ))}
+      </div>
 
-      {/* Formulário centralizado com fundo transparente */}
-      <div className="relative z-10 min-h-screen flex items-center justify-center p-8">
+      {/* Grid Neural Background */}
+      <div className="absolute inset-0 opacity-10">
+        <div className="w-full h-full" style={{
+          backgroundImage: `
+            radial-gradient(circle at 1px 1px, rgba(105, 142, 162, 0.4) 1px, transparent 0)
+          `,
+          backgroundSize: '40px 40px'
+        }} />
+      </div>
+
+      {/* Container Principal Centralizado */}
+      <div className="relative z-10 w-full max-w-md mx-4 flex items-center justify-center">
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.8, delay: 0.2 }}
-          className="w-full max-w-md bg-black/40 backdrop-blur-md rounded-2xl p-8 border border-orange-200/20 shadow-2xl"
+          className="w-full max-w-md backdrop-blur-sm rounded-3xl p-8 shadow-2xl" 
+          style={{background: 'rgba(255, 255, 255, 0.1)', border: '2px solid rgba(255, 255, 255, 0.2)', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.2)'}}
         >
           {/* Cabeçalho */}
           <div className="mb-8 text-center">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="mb-4 flex justify-center"
+            >
+              <div className="w-20 h-20 rounded-full overflow-hidden bg-gradient-to-br from-orange-500 to-orange-600 p-3 shadow-2xl border-4 border-white/20">
+                <img 
+                  src={Logo} 
+                  alt="FaceRec Logo" 
+                  className="w-full h-full object-contain filter brightness-110"
+                />
+              </div>
+            </motion.div>
             <motion.h1
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.4 }}
-              className="text-3xl font-bold text-white mb-2"
+              className="text-3xl font-bold text-white mb-2 tracking-wide"
+              style={{ fontFamily: "'Inter', sans-serif" }}
             >
-              Welcome back
+              FaceRec Registry
             </motion.h1>
             <motion.p
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.5 }}
-              className="text-gray-300"
+              className="text-gray-300 font-medium"
+              style={{ fontFamily: "'Inter', sans-serif" }}
             >
               Please enter your details.
             </motion.p>
@@ -237,7 +286,7 @@ export default function Login() {
           >
             {/* Campo Email */}
             <div>
-              <label className="block text-sm font-medium text-gray-200 mb-2">
+              <label className="block text-sm font-semibold text-white mb-2" style={{ fontFamily: "'Inter', sans-serif" }}>
                 E-mail
               </label>
               <input
@@ -247,13 +296,14 @@ export default function Login() {
                 onChange={handleChange}
                 required
                 placeholder="Enter your e-mail"
-                className="w-full px-4 py-3 bg-white/15 backdrop-blur-sm border border-orange-200/30 rounded-lg focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all duration-200 text-white placeholder-gray-200"
+                className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all duration-200 bg-white/80 text-slate-800 font-medium"
+                style={{ fontFamily: "'Inter', sans-serif" }}
               />
             </div>
 
             {/* Campo Senha */}
             <div>
-              <label className="block text-sm font-medium text-gray-200 mb-2">
+              <label className="block text-sm font-semibold text-white mb-2" style={{ fontFamily: "'Inter', sans-serif" }}>
                 Password
               </label>
               <div className="relative">
@@ -264,12 +314,13 @@ export default function Login() {
                   onChange={handleChange}
                   required
                   placeholder="********"
-                  className="w-full px-4 py-3 pr-12 bg-white/15 backdrop-blur-sm border border-orange-200/30 rounded-lg focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all duration-200 text-white placeholder-gray-200"
+                  className="w-full px-4 py-3 pr-12 border border-slate-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all duration-200 bg-white/80 text-slate-800 font-medium"
+                  style={{ fontFamily: "'Inter', sans-serif" }}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-300 hover:text-white"
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
                 >
                   {showPassword ? (
                     <EyeOff className="h-5 w-5" />
@@ -289,11 +340,12 @@ export default function Login() {
                   onChange={(e) => setRememberMe(e.target.checked)}
                   className="w-4 h-4 text-orange-600 bg-white/15 border-orange-200/30 rounded focus:ring-orange-400 focus:ring-2"
                 />
-                <span className="ml-2 text-sm text-gray-200">Remember me</span>
+                <span className="ml-2 text-sm text-white font-medium" style={{ fontFamily: "'Inter', sans-serif" }}>Remember me</span>
               </label>
               <Link
                 to="/forgot-password"
-                className="text-sm text-gray-200 hover:text-white transition-colors"
+                className="text-sm text-white hover:text-gray-200 transition-colors font-medium"
+                style={{ fontFamily: "'Inter', sans-serif" }}
               >
                 Forgot your password?
               </Link>
@@ -305,12 +357,13 @@ export default function Login() {
               whileTap={{ scale: 0.98 }}
               type="submit"
               disabled={loading}
-              className="w-full py-3 px-6 bg-gradient-to-r from-orange-600 to-orange-500 backdrop-blur-sm text-white rounded-lg font-semibold hover:from-orange-700 hover:to-orange-600 focus:ring-2 focus:ring-orange-400 focus:ring-offset-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed border border-orange-200/20"
+              className="w-full py-3 px-6 bg-gradient-to-r from-orange-600 to-orange-500 backdrop-blur-sm text-white rounded-lg font-bold hover:from-orange-700 hover:to-orange-600 focus:ring-2 focus:ring-orange-400 focus:ring-offset-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed border border-orange-200/20 tracking-wide"
+              style={{ fontFamily: "'Inter', sans-serif" }}
             >
               {loading ? (
                 <div className="flex items-center justify-center gap-2">
                   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                  <span>Processando...</span>
+                  <span style={{ fontFamily: "'Inter', sans-serif" }}>Processando...</span>
                 </div>
               ) : (
                 "Log in"
@@ -320,10 +373,10 @@ export default function Login() {
             {/* Divisor */}
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-orange-200/30"></div>
+                <div className="w-full border-t border-white/30"></div>
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-black/40 text-gray-200">ou continue com</span>
+                <span className="px-2 bg-black/40 text-white font-medium" style={{ fontFamily: "'Inter', sans-serif" }}>ou continue com</span>
               </div>
             </div>
 
@@ -333,7 +386,8 @@ export default function Login() {
               whileTap={{ scale: 0.98 }}
               type="button"
               onClick={handleGoogleLogin}
-              className="w-full py-3 px-6 border border-orange-200/30 bg-white/15 backdrop-blur-sm text-gray-100 rounded-lg font-semibold hover:bg-white/25 focus:ring-2 focus:ring-orange-400 focus:ring-offset-2 transition-all duration-200 flex items-center justify-center gap-2"
+              className="w-full py-3 px-6 border border-slate-300 bg-white/80 text-slate-700 rounded-xl font-bold hover:bg-white/90 focus:ring-2 focus:ring-orange-400 focus:ring-offset-2 transition-all duration-200 flex items-center justify-center gap-2 tracking-wide"
+              style={{ fontFamily: "'Inter', sans-serif" }}
             >
               <Chrome className="w-5 h-5 text-blue-300" />
               <span>Google FaceRec Auth</span>
@@ -347,11 +401,12 @@ export default function Login() {
             transition={{ delay: 0.8 }}
             className="mt-8 text-center"
           >
-            <p className="text-gray-300">
+            <p className="text-white font-medium" style={{ fontFamily: "'Inter', sans-serif" }}>
               Don't have an account?{" "}
               <Link
                 to="/cadastro"
-                className="font-semibold text-white hover:text-gray-200 underline transition-colors"
+                className="font-bold text-orange-300 hover:text-orange-200 underline transition-colors"
+                style={{ fontFamily: "'Inter', sans-serif" }}
               >
                 Register here
               </Link>
